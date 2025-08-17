@@ -35,7 +35,7 @@ GxEPD2_BW<GxEPD2_310_GDEQ031T10, GxEPD2_310_GDEQ031T10::HEIGHT> display(GxEPD2_3
 uint8_t *decodebuffer = NULL;
 lv_timer_t *flush_timer = NULL;
 int disp_refr_mode = DISP_REFR_MODE_PART;
-const char HelloWorld[] = "T-Deck-Pro!";
+const char HelloWorld[] = "[ACOS]";
 
 bool peri_init_st[E_PERI_NUM_MAX] = {0};
 

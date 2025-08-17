@@ -21,7 +21,8 @@ LV_IMG_DECLARE(img_A7682E)
 LV_IMG_DECLARE(img_PCM5102)
 LV_IMG_DECLARE(img_touch)
 LV_IMG_DECLARE(img_start)
-
+LV_IMG_DECLARE(img_acos)
+LV_IMG_DECLARE(img_acos_logo)
 
 // font
 LV_FONT_DECLARE(Font_Mono_Bold_14)
