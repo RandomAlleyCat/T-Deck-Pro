@@ -4,15 +4,11 @@
 /*********************************************************************************
  *                                  INCLUDES
  * *******************************************************************************/
-#include "peripheral.h"
 #define XPOWERS_CHIP_BQ25896
 #include <XPowersLib.h>
 #include "bq27220.h"
-#include "Audio.h"
 #include "FS.h"
-#include "SD.h"
 #include "SPI.h"
-#include "FS.h"
 #include "SPIFFS.h"
 
 /*********************************************************************************
@@ -22,21 +18,11 @@
 #define DISP_REFR_MODE_FULL 0
 #define DISP_REFR_MODE_PART 1
 
-#define TINY_GSM_MODEM_SIM7672
-#define TINY_GSM_RX_BUFFER 1024 // Set RX buffer to 1Kb
-#define MODEM_GPS_ENABLE_GPIO               (-1)
+#define DISP_REFR_MODE_FULL 0
+#define DISP_REFR_MODE_PART 1
 
-#include <TinyGsmClient.h>
-
-extern TinyGsm modem;
-extern TaskHandle_t a7682_handle;
-/*********************************************************************************
- *                                   MACROS
- * *******************************************************************************/
-extern bool peri_init_st[E_PERI_NUM_MAX];
 extern XPowersPPM PPM;
 extern BQ27220 bq27220;
-extern Audio audio;
 
 /*********************************************************************************
  *                                  TYPEDEFS

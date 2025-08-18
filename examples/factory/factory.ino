@@ -12,22 +12,13 @@
 #include "utilities.h"
 #include <GxEPD2_BW.h>
 #include <TouchDrvCSTXXX.hpp>
-#include <TinyGPS++.h>
 #include "lvgl.h"
 #include "ui_deckpro.h"
 #include <Fonts/FreeMonoBold9pt7b.h>
 #include "factory.h"
-#include "peripheral.h"
-#include <Preferences.h>
-
-Preferences preferences;
-
-TinyGsm modem(SerialAT);
-TaskHandle_t a7682_handle;
 
 XPowersPPM PPM;
 BQ27220 bq27220;
-Audio audio;
 
 TouchDrvCSTXXX touch;
 GxEPD2_BW<GxEPD2_310_GDEQ031T10, GxEPD2_310_GDEQ031T10::HEIGHT> display(GxEPD2_310_GDEQ031T10(BOARD_EPD_CS, BOARD_EPD_DC, BOARD_EPD_RST, BOARD_EPD_BUSY)); // GDEQ031T10 240x320, UC8253, (no inking, backside mark KEGMO 3100)
@@ -36,8 +27,6 @@ uint8_t *decodebuffer = NULL;
 lv_timer_t *flush_timer = NULL;
 int disp_refr_mode = DISP_REFR_MODE_PART;
 const char HelloWorld[] = "[ACOS]";
-
-bool peri_init_st[E_PERI_NUM_MAX] = {0};
 
 /*********************************************************************************
  *                              STATIC PROTOTYPES
@@ -235,80 +224,6 @@ static bool sd_care_init(void)
     return true;
 }
 
-static void a7682_task(void *param)
-{
-    vTaskSuspend(a7682_handle);
-    while (1)
-    {
-        while (SerialAT.available())
-        {
-            SerialMon.write(SerialAT.read());
-        }
-        while (SerialMon.available())
-        {
-            SerialAT.write(SerialMon.read());
-        }
-        delay(1);
-    }
-}
-
-static bool A7682E_init(void)
-{
-    Serial.println("Place your board outside to catch satelite signal");
-
-    // Set module baud rate and UART pins
-    SerialAT.begin(115200, SERIAL_8N1, BOARD_A7682E_TXD, BOARD_A7682E_RXD);
-
-    Serial.println("Start modem...");
-
-    // power on
-    digitalWrite(BOARD_A7682E_PWRKEY, LOW);
-    delay(10);
-    digitalWrite(BOARD_A7682E_PWRKEY, HIGH);
-    delay(50);
-    digitalWrite(BOARD_A7682E_PWRKEY, LOW);
-    delay(10);
-
-    int retry_cnt = 5;
-    int retry = 0;
-    while (!modem.testAT(1000)) {
-        Serial.println(".");
-        if (retry++ > retry_cnt) {
-            digitalWrite(BOARD_A7682E_PWRKEY, LOW);
-            delay(100);
-            digitalWrite(BOARD_A7682E_PWRKEY, HIGH);
-            delay(1000);
-            digitalWrite(BOARD_A7682E_PWRKEY, LOW);
-
-            Serial.println("[A7682E] Init Fail");
-            break;
-        }
-    }
-    
-    Serial.println();
-    delay(200);
-
-    xTaskCreate(a7682_task, "a7682_handle", 1024 * 3, NULL, A7682E_PRIORITY, &a7682_handle);
-
-    return (retry < retry_cnt);
-}
-
-static bool pcm5102a_init(void)
-{
-    bool ret = audio.setPinout(BOARD_I2S_BCLK, BOARD_I2S_LRC, BOARD_I2S_DOUT);
-
-    if (ret == false) 
-        Serial.printf("[%d] Execution error\n", __LINE__);
-
-    audio.setVolume(21); // 0...21
-
-    pinMode(BOARD_6609_EN, OUTPUT);
-    digitalWrite(BOARD_6609_EN, HIGH);
-
-    // audio_paly_flag = audio.connecttoFS(SD, "/voice_time/BBIBBI.mp3");
-
-    return true;
-}
 
 static void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
     Serial.printf("Listing spiffs directory: %s\n", dirname);
@@ -343,161 +258,30 @@ static void listDir(fs::FS &fs, const char * dirname, uint8_t levels){
 
 void setup()
 {
-    gpio_hold_dis((gpio_num_t)BOARD_6609_EN);
-    gpio_hold_dis((gpio_num_t)BOARD_LORA_EN);
-    gpio_hold_dis((gpio_num_t)BOARD_GPS_EN);
-    gpio_hold_dis((gpio_num_t)BOARD_1V8_EN);
-    gpio_hold_dis((gpio_num_t)BOARD_A7682E_PWRKEY);
-
     gpio_deep_sleep_hold_dis();
-
     Serial.begin(115200);
-
-    // delay(3000);
-
-    // // frist startup
-    // preferences.begin("my-app", false);
-    // bool start = preferences.getBool("counter", false);
-    // Serial.printf("start = %d\n", start);
-    // if(start == false)
-    // {
-    //     Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL);
-    //     bool ret = bq25896_init();
-    //     if(ret == true)
-    //     {
-    //         preferences.putBool("counter", true);
-    //         Serial.printf("bq25896 init success\n");
-    //     }else{
-    //         Serial.printf("bq25896 init failure\n");
-    //     }
-
-    //     while (PPM.isVbusIn())
-    //     {
-    //         delay(1000);
-    //         Serial.println("Unplug the USB");
-    //     }
-    //     PPM.shutdown();
-    // }
-
-    // IO
-    pinMode(BOARD_KEYBOARD_LED, OUTPUT);
-    pinMode(BOARD_MOTOR_PIN, OUTPUT);
-    pinMode(BOARD_6609_EN, OUTPUT);         // enable 7682 module
-    pinMode(BOARD_LORA_EN, OUTPUT);         // enable LORA module
-    pinMode(BOARD_GPS_EN, OUTPUT);          // enable GPS module
-    pinMode(BOARD_1V8_EN, OUTPUT);          // enable gyroscope module
-    pinMode(BOARD_A7682E_PWRKEY, OUTPUT); 
-    digitalWrite(BOARD_KEYBOARD_LED, LOW);
-    digitalWrite(BOARD_MOTOR_PIN, LOW);
-    digitalWrite(BOARD_6609_EN, HIGH);
-    digitalWrite(BOARD_LORA_EN, HIGH);
-    digitalWrite(BOARD_GPS_EN, HIGH);
-    digitalWrite(BOARD_1V8_EN, HIGH);
-    digitalWrite(BOARD_A7682E_PWRKEY, HIGH);
-
-    // LORA、SD、EPD use the same SPI, in order to avoid mutual influence;
-    // before powering on, all CS signals should be pulled high and in an unselected state;
-    pinMode(BOARD_LORA_CS, OUTPUT); 
-    digitalWrite(BOARD_LORA_CS, HIGH);
-    pinMode(BOARD_LORA_RST, OUTPUT); 
-    digitalWrite(BOARD_LORA_RST, HIGH);
-    pinMode(BOARD_SD_CS, OUTPUT); 
-    digitalWrite(BOARD_SD_CS, HIGH);
-    pinMode(BOARD_EPD_CS, OUTPUT); 
-    digitalWrite(BOARD_EPD_CS, HIGH);
-
-
-    // i2c devices
-    byte error, address;
-    int nDevices = 0;
-    Wire.begin(BOARD_I2C_SDA, BOARD_I2C_SCL);
-    Serial.printf(" ------------- I2C ------------- \n");
-    for(address = 0x01; address < 0x7F; address++){
-        Wire.beginTransmission(address);
-        error = Wire.endTransmission();
-        if(error == 0){ // 0: success.
-            nDevices++;
-            if(address == BOARD_I2C_ADDR_TOUCH){
-                // flag_Touch_init = true;
-                Serial.printf("[0x%x] TOUCH find!\n", address);
-            } else if (address == BOARD_I2C_ADDR_LTR_553ALS) {
-                Serial.printf("[0x%x] LTR_553ALS find!\n", address);
-            } else if (address == BOARD_I2C_ADDR_GYROSCOPDE) {
-                Serial.printf("[0x%x] GYROSCOPDE find!\n", address);
-            } else if (address == BOARD_I2C_ADDR_KEYBOARD) {
-                Serial.printf("[0x%x] KEYBOARD find!\n", address);
-            } else if (address == BOARD_I2C_ADDR_BQ27220) {
-                Serial.printf("[0x%x] BQ27220 find!\n", address);
-            } else if (address == BOARD_I2C_ADDR_BQ25896) {
-                Serial.printf("[0x%x] BQ25896 find!\n", address);
-            }
-        }
-    }
-
-    Serial.printf(" ------------- SPIFFS ------------- \n");
-
     if(!SPIFFS.begin(true)){
         Serial.println("SPIFFS Mount Failed");
         return;
     }
-
     listDir(SPIFFS, "/", 0);
     Serial.println(" ------------- PERI ------------- ");
-
-    // SPI
     SPI.begin(BOARD_SPI_SCK, BOARD_SPI_MISO, BOARD_SPI_MOSI);
-
-    // init peripheral
     touch.setPins(BOARD_TOUCH_RST, BOARD_TOUCH_INT);
-    peri_init_st[E_PERI_INK_SCREEN] = ink_screen_init();
-    peri_init_st[E_PERI_LORA]       = lora_init();
-    peri_init_st[E_PERI_TOUCH]      = touch.begin(Wire, BOARD_I2C_ADDR_TOUCH, BOARD_TOUCH_SDA, BOARD_TOUCH_SCL);
-    peri_init_st[E_PERI_KYEPAD]     = keypad_init(BOARD_I2C_ADDR_KEYBOARD);
-    peri_init_st[E_PERI_BQ25896]    = bq25896_init();
-    peri_init_st[E_PERI_BQ27220]    = bq27220_init();
-    peri_init_st[E_PERI_SD]         = sd_care_init();
-    peri_init_st[E_PERI_GPS]        = gps_init();
-    peri_init_st[E_PERI_BHI260AP]   = BHI260AP_init();
-    peri_init_st[E_PERI_LTR_553ALS] = LTR553_init();
-    peri_init_st[E_PERI_A7682E]     = A7682E_init();
-
-    if(peri_init_st[E_PERI_A7682E] == false)
-    {
-        peri_init_st[E_PERI_PCM5102A] = pcm5102a_init();
-    }
-
+    ink_screen_init();
+    touch.begin(Wire, BOARD_I2C_ADDR_TOUCH, BOARD_TOUCH_SDA, BOARD_TOUCH_SCL);
+    bq25896_init();
+    bq27220_init();
     lvgl_init();
-
     ui_deckpro_entry();
-
     disp_full_refr();
 }
 
 
-uint32_t tick = 0;
-
 void loop()
 {
     lv_task_handler();
-    keypad_loop();
-
-    if(peri_init_st[E_PERI_PCM5102A] == true) 
-    {
-        audio.loop();
-    }
-    
     delay(1);
-
-
-    if(millis() - tick > 3000) {
-        tick = millis();
-        // printf("BOARD_LORA_CS=%d\n", digitalRead(BOARD_LORA_CS));
-        // printf("BOARD_LORA_RST=%d\n", digitalRead(BOARD_LORA_RST));
-        // printf("BOARD_LORA_BUSY=%d\n", digitalRead(BOARD_LORA_BUSY));
-        // printf("BOARD_LORA_EN=%d\n", digitalRead(BOARD_LORA_EN));
-
-        // printf("BOARD_EPD_CS=%d\n", digitalRead(BOARD_EPD_CS));
-    }
 }
 
 /*********************************************************************************
