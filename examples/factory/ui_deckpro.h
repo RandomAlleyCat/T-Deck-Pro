@@ -47,26 +47,9 @@ extern "C" {
  * *******************************************************************************/
 enum {
     SCREEN0_ID = 0,
-    SCREEN1_ID,
-    SCREEN1_1_ID,
-    SCREEN1_2_ID,
-    SCREEN2_ID,
-    SCREEN2_1_ID,
-    SCREEN3_ID,
-    SCREEN4_ID,
-    SCREEN4_1_ID,
-    SCREEN4_2_ID,
-    SCREEN5_ID,
-    SCREEN6_ID,
-    SCREEN6_1_ID,
-    SCREEN6_2_ID,
-    SCREEN7_ID,
-    SCREEN8_ID,
-    SCREEN8_1_ID,
-    SCREEN8_2_ID,
-    SCREEN9_ID,
-    SCREEN10_ID,
-    SCREEN11_ID,
+    SCREEN_SHUTDOWN_ID,
+    SCREEN_SLEEP_ID,
+    SCREEN_ACOS_ID,
 };
 
 typedef void (*ui_indev_read_cb)(int);
